@@ -1,0 +1,35 @@
+# assets/characters klasöründe yeni dosya: style_guide.txt
+# İçeriği yapıştır:
+
+# assets/characters/style_guide.txt
+# ====================
+CHARACTER NAME: Mavi Fil
+
+VISUAL SPECIFICATIONS:
+- Type: Cute cartoon elephant, baby-friendly design
+- Main color: #4A90E2 (soft blue)
+- Accent colors: #F5A623 (yellow hat), #7ED321 (green accessories)
+- Style: Flat vector illustration, children's book aesthetic
+- Line style: Soft rounded edges, no sharp corners
+- Expression: Always friendly, smiling, big eyes
+- Proportions: Head slightly larger than body (cute factor)
+- Accessories: Small yellow hat (signature item, always present)
+
+CONSISTENCY RULES:
+1. Yellow hat MUST appear in every image
+2. Blue color hex #4A90E2 for body
+3. Same eye shape and smile in all scenes
+4. No clothing changes (keeps character recognizable)
+5. Background should not overpower character
+
+REFERENCE IMAGES:
+- blue_elephant_ref_01.png : Front view, waving
+- blue_elephant_ref_02.png : Side profile, walking
+- blue_elephant_ref_03.png : 3/4 angle, pointing
+- blue_elephant_ref_04.png : Close-up face, smiling
+
+USAGE TIP:
+When generating new images, include this in prompt:
+"consistent character design: cute blue elephant with yellow hat, flat vector style, children book illustration"
+# ====================
+# Dosyayı kaydet ✅

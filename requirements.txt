@@ -1,0 +1,23 @@
+# Proje klasöründe yeni dosya oluştur: requirements.txt
+# İçeriği aşağıdaki gibi yapıştır:
+
+# requirements.txt
+# ====================
+# Core dependencies
+moviepy==1.0.3
+openai>=1.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# TTS - Piper (offline)
+# Not: Piper binary'leri GitHub Actions'ta önceden yüklü olacak
+
+# Utilities
+structlog>=23.0.0
+
+# Testing (optional for local dev)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+# ====================
+# Dosyayı kaydet ✅
