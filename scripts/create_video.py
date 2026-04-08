@@ -74,16 +74,17 @@ def create_subtitle_clip(
     Create a subtitle TextClip with consistent styling
     """
     return TextClip(
-        text,
-        fontsize=fontsize,
-        font=font,
-        color=color,
-        stroke_color=stroke_color,
-        stroke_width=stroke_width,
-        method="caption",
-        size=(config.VIDEO_RESOLUTION[0] * 0.9, None),  # 90% width, auto height
-        align="center"
-    ).set_position(position).set_duration(duration)
+    text,
+    fontsize=fontsize,
+    font=font,
+    color=color,
+    stroke_color=stroke_color,
+    stroke_width=stroke_width,
+    method="label",  # Changed from "caption" to "label"
+    size=(int(config.VIDEO_RESOLUTION[0] * 0.9), None),
+    align="center",
+    transparent=True  # Explicit transparency for Pillow
+).set_position(position).set_duration(duration)
 
 
 def create_scene_clip(
