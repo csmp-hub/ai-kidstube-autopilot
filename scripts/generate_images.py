@@ -71,19 +71,20 @@ TECHNICAL:
 @retry_with_fallback(max_retries=2, timeout_seconds=60)
 def call_hf_zerogpu(prompt: str, model_id: str = None) -> Optional[bytes]:
     """
-    Call Hugging Face ZeroGPU API for image generation
-    Returns image bytes or None if failed
+    Call Hugging Face Inference API for image generation
+    Updated endpoint: router.huggingface.co (Nov 2024)
     """
     model_id = model_id or config.HF_MODEL_ID
     
-    # ZeroGPU endpoint (anon or with token)
-    headers = {"Authorization": f"Bearer {config.HF_ZERO_GPU_TOKEN}"} if config.HF_ZERO_GPU_TOKEN else {}
+    # ✅ NEW ENDPOINT (api-inference deprecated)
+    base_url = "https://router.huggingface.co/hf-inference/models"
+    url = f"{base_url}/{model_id}"
     
-    # Note: ZeroGPU API structure may vary - this is a template
-    # Actual implementation depends on the specific Space's API
-    # Hugging Face updated their API endpoint (Nov 2024)
-    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
+    headers = {}
+    if config.HF_ZERO_GPU_TOKEN:
+        headers["Authorization"] = f"Bearer {config.HF_ZERO_GPU_TOKEN}"
     
+    # Payload for text-to-image models
     payload = {
         "inputs": prompt,
         "parameters": {
@@ -94,7 +95,7 @@ def call_hf_zerogpu(prompt: str, model_id: str = None) -> Optional[bytes]:
         }
     }
     
-    logger.info(f"Calling HF ZeroGPU: {model_id[:30]}... [function: call_hf_zerogpu]")
+    logger.info(f"Calling HF Inference API: {model_id[:50]}... [endpoint: router.huggingface.co]")
     
     response = requests.post(url, headers=headers, json=payload, timeout=config.IMAGE_GENERATION_TIMEOUT)
     
@@ -104,7 +105,10 @@ def call_hf_zerogpu(prompt: str, model_id: str = None) -> Optional[bytes]:
         # Model loading - retry after delay
         logger.warning("Model loading, waiting 20s...")
         time.sleep(20)
-        return call_hf_zerogpu(prompt, model_id)  # Recursive retry
+        return call_hf_zerogpu(prompt, model_id)
+    elif response.status_code == 410:
+        logger.error(f"HF endpoint deprecated: {response.text}")
+        return None
     else:
         logger.error(f"HF API error {response.status_code}: {response.text[:200]}")
         return None
