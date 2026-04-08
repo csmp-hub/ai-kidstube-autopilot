@@ -62,7 +62,7 @@ def send_to_telegram(
     
     with open(video_path, "rb") as video_file:
         files = {"video": (video_path.name, video_file, "video/mp4")}
-        data = {"chat_id": chat_id, "caption": caption, "parse_mode": "Markdown"}
+        data = {"chat_id": chat_id, "caption": caption}
         
         response = requests.post(url, files=files, data=data, timeout=120)
     
