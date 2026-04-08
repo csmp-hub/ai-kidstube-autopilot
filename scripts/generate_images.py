@@ -81,7 +81,8 @@ def call_hf_zerogpu(prompt: str, model_id: str = None) -> Optional[bytes]:
     
     # Note: ZeroGPU API structure may vary - this is a template
     # Actual implementation depends on the specific Space's API
-    url = f"https://api-inference.huggingface.co/models/{model_id}"
+    # Hugging Face updated their API endpoint (Nov 2024)
+    url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
     
     payload = {
         "inputs": prompt,
