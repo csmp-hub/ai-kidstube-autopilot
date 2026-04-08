@@ -1,6 +1,3 @@
-# Proje ana klasöründe yeni dosya: main.py
-# İçeriği yapıştır:
-
 # main.py
 # ====================
 #!/usr/bin/env python3
@@ -34,7 +31,8 @@ def main() -> int:
     # Setup logging
     setup_logger(config.LOG_LEVEL if hasattr(config, 'LOG_LEVEL') else "INFO")
     
-    logger.info("🚀 AI-KidsTube Autopilot starting", version="2.0")
+    # ✅ FIX: Removed extra keyword arguments (logging module doesn't support them)
+    logger.info("🚀 AI-KidsTube Autopilot starting v2.0")
     
     # Step 0: Validate configuration
     if not config.is_ready():
@@ -75,21 +73,21 @@ def main() -> int:
         video_path = add_tiktok_metadata(
             video_path,
             title=script["title"],
-            description=f"Eğitici çocuk videosu: {script['topic']}",
+            description=f"Educational kids video: {script['topic']}",
             hashtags=hashtags
         )
         logger.info(f"✅ Optimized: {video_path.name}")
         
         # Step 6: Upload to Telegram
         logger.info("📤 Step 6/6: Uploading to Telegram...")
-        caption = f"""🎬 *Yeni Video Hazır!*
+        caption = f"""🎬 *New Video Ready!*
 
 📚 {script['title']}
-🎯 Konu: {script['topic']}
-⏱️ Süre: {script.get('duration_seconds', '~20')} saniye
+🎯 Topic: {script['topic']}
+⏱️ Duration: {script.get('duration_seconds', '~20')} seconds
 🏷️ {', '.join(hashtags[:5])}
 
-✅ İndir, kontrol et, beğenirsen TikTok/YouTube'a yükle!"""
+✅ Download, review, and upload to TikTok/YouTube if you like!"""
         
         success = send_to_telegram(video_path, caption=caption)
         
@@ -103,7 +101,7 @@ def main() -> int:
             return 0  # Still success - video was made
             
     except Exception as e:
-        logger.error(f"❌ Pipeline failed: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"❌ Pipeline failed: {type(e).__name__}: {e}")
         return 1
 
 
@@ -111,4 +109,3 @@ if __name__ == "__main__":
     exit_code = main()
     sys.exit(exit_code)
 # ====================
-# Dosyayı kaydet ✅
