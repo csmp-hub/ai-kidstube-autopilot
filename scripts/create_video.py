@@ -86,7 +86,7 @@ def create_scene_clip(
     img_clip = img_clip.set_position("center")
     
     # Add audio if provided
-    if audio_path and audio_path.exists():
+    if audio_path and audio_path.exists() and audio_path.suffix in ['.wav', '.mp3']:
         audio_clip = AudioFileClip(str(audio_path))
         # Trim or loop audio to match duration
         if audio_clip.duration < duration:
