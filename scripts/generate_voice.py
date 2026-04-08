@@ -14,7 +14,8 @@ from utils.config import config
 from utils.logger import logger
 
 # Piper model info for Turkish
-PIPER_MODEL_NAME = "tr_TR-dfki-medium"
+# English model for kids content (clear, friendly voice)
+PIPER_MODEL_NAME = "en_US-amy-medium"
 PIPER_MODEL_URL = f"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{PIPER_MODEL_NAME}/{PIPER_MODEL_NAME}.onnx"
 PIPER_CONFIG_URL = f"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{PIPER_MODEL_NAME}/{PIPER_MODEL_NAME}.onnx.json"
 
