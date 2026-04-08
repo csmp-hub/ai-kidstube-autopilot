@@ -1,44 +1,44 @@
 # utils/logger.py
 # ====================
 """
-Structured logging for AI-KidsTube Autopilot
+Simple logging for AI-KidsTube Autopilot (GitHub Actions compatible)
 """
-import structlog
 import logging
 import sys
 from pathlib import Path
 
 def setup_logger(log_level: str = "INFO", log_file: Path = None):
     """
-    Configure structlog with console and optional file output
+    Configure standard logging (simple, reliable, GitHub Actions compatible)
     """
-    # Use standard logging levels (NOT structlog.INFO)
+    # Use standard Python logging (not structlog - avoids compatibility issues)
     level = getattr(logging, log_level.upper(), logging.INFO)
     
-    processors = [
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.dev.set_exc_info,
-    ]
+    # Create logger
+    logger = logging.getLogger("ai-kidstube")
+    logger.setLevel(level)
     
-    # Add file handler if specified
+    # Clear existing handlers (prevent duplicates in re-runs)
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(level)
+    console_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S')
+    console_handler.setFormatter(console_format)
+    logger.addHandler(console_handler)
+    
+    # Optional file handler
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        processors.append(
-            structlog.processors.JSONRenderer()
-        )
+        file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='a')
+        file_handler.setLevel(level)
+        file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(file_format)
+        logger.addHandler(file_handler)
     
-    structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(level),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(
-            file=sys.stdout if not log_file else open(log_file, "a", encoding="utf-8")
-        ),
-        cache_logger_on_first_use=True,
-    )
-    
-    return structlog.get_logger()
+    return logger
 
 # Create default logger instance
 logger = setup_logger()
