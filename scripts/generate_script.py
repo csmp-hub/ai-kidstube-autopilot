@@ -1,8 +1,8 @@
 # scripts/generate_script.py
 # ====================
 """
-Generate educational video scripts using LLM (Self-Healing OpenRouter Integration)
-Automatically cycles through available free models. No more 400/404 errors.
+Generate educational video scripts using LLM (Robust OpenRouter Integration)
+Includes detailed error logging and API key validation.
 """
 import json
 import requests
@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 from utils.config import config
 from utils.logger import logger
-from utils.api_wrapper import retry_with_fallback
 
 def load_system_prompt() -> str:
     """Load and customize system prompt with character info"""
@@ -25,7 +24,7 @@ def load_system_prompt() -> str:
 def generate_topic_ideas() -> list[str]:
     return [
         "Colors: Blue, red, yellow",
-        "Numbers: Counting 1 to 5",
+        "Numbers: Counting 1 to 5", 
         "Shapes: Circle, square, triangle",
         "Animals and their sounds",
         "Fruits and their colors",
@@ -34,12 +33,14 @@ def generate_topic_ideas() -> list[str]:
         "Basic polite words"
     ]
 
-@retry_with_fallback(max_retries=1, timeout_seconds=30)
 def call_openrouter_api(user_prompt: str) -> dict:
     """
-    Self-healing API call: tries openrouter/auto first, then falls back to specific free models.
-    Forces free tier via max_price: 0. Automatically cleans JSON output.
+    Robust API call with detailed error logging and proper request format.
     """
+    # Validate API key first
+    if not config.OPENROUTER_API_KEY or not config.OPENROUTER_API_KEY.startswith("sk-or-"):
+        raise ValueError(f"❌ Invalid OPENROUTER_API_KEY format. Must start with 'sk-or-'. Got: {config.OPENROUTER_API_KEY[:10] if config.OPENROUTER_API_KEY else 'EMPTY'}...")
+    
     headers = {
         "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://github.com/csmp-hub/ai-kidstube-autopilot",
@@ -47,52 +48,72 @@ def call_openrouter_api(user_prompt: str) -> dict:
         "Content-Type": "application/json"
     }
     
-    # Official OpenRouter free-tier model rotation list
-    model_pool = [
-        "openrouter/auto",  # Official router: picks best available free model dynamically
-        "meta-llama/llama-3-8b-instruct:free",
-        "qwen/qwen-2-7b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "google/gemma-7b-it:free"
-    ]
+    # Use a single, known-working free model to isolate the issue
+    # If this fails, we know it's auth/format, not model availability
+    model_id = "meta-llama/llama-3-8b-instruct:free"
     
-    last_error = None
-    for model_id in model_pool:
-        try:
-            logger.info(f"🔄 Trying model: {model_id}")
-            payload = {
-                "model": model_id,
-                "messages": [
-                    {"role": "system", "content": load_system_prompt()},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 1000,
-                "max_price": 0  # 🔑 FORCES FREE TIER ONLY
-            }
-            
-            resp = requests.post(
-                f"{config.OPENROUTER_BASE_URL}/chat/completions",
-                headers=headers, json=payload, timeout=30
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
-            
-            # Clean markdown/JSON wrappers
-            if content.startswith("```json"): content = content.replace("```json", "").replace("```", "").strip()
-            elif content.startswith("```"): content = content.replace("```", "").strip()
-            
-            parsed = json.loads(content)
-            logger.info(f"✅ Successfully generated script with model: {model_id}")
-            return parsed
-            
-        except Exception as e:
-            last_error = e
-            logger.warning(f"⚠️ Model {model_id} failed: {type(e).__name__}")
-            continue
-            
-    raise last_error or RuntimeError("All free models failed. Check OPENROUTER_API_KEY or quota.")
+    payload = {
+        "model": model_id,
+        "messages": [
+            {"role": "system", "content": load_system_prompt()},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1000,
+        "max_price": 0  # Force free tier
+    }
+    
+    logger.info(f"🔍 Calling OpenRouter API with model: {model_id}")
+    logger.debug(f"Request payload: {json.dumps(payload, indent=2)[:500]}...")
+    
+    try:
+        response = requests.post(
+            f"{config.OPENROUTER_BASE_URL}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=45
+        )
+        
+        # Log full response for debugging
+        logger.debug(f"Response status: {response.status_code}")
+        logger.debug(f"Response headers: {dict(response.headers)}")
+        
+        if response.status_code == 401:
+            raise ValueError(f"❌ API Key invalid or expired. Check your OPENROUTER_API_KEY secret.")
+        elif response.status_code == 402:
+            raise ValueError(f"❌ Account has no credits or free tier quota exceeded. Check https://openrouter.ai/keys")
+        elif response.status_code == 400:
+            # Log the actual error message from OpenRouter
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                raise ValueError(f"❌ Bad Request: {error_msg}. Payload may be malformed.")
+            except:
+                raise ValueError(f"❌ Bad Request (400). Response: {response.text[:200]}")
+        elif response.status_code != 200:
+            raise ValueError(f"❌ Unexpected status {response.status_code}: {response.text[:200]}")
+        
+        # Parse successful response
+        data = response.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        
+        # Clean markdown/JSON wrappers
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+        elif content.startswith("```"):
+            content = content.replace("```", "").strip()
+        
+        parsed = json.loads(content)
+        logger.info(f"✅ Script generated successfully with {model_id}")
+        return parsed
+        
+    except requests.exceptions.ConnectionError:
+        raise ValueError("❌ Network error: Could not connect to OpenRouter. Check GitHub Actions internet access.")
+    except requests.exceptions.Timeout:
+        raise ValueError("❌ Request timed out. OpenRouter may be slow; try again.")
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Failed to parse JSON response. Raw content: {content[:300]}")
+        raise ValueError(f"❌ Invalid JSON from API: {e}")
 
 def generate_daily_script(topic: str = None) -> dict:
     if not topic:
@@ -100,14 +121,15 @@ def generate_daily_script(topic: str = None) -> dict:
         topic = random.choice(generate_topic_ideas())
         
     logger.info(f"Generating script for topic: {topic}")
-    user_prompt = f"Generate a children's educational video script about: {topic}. Output JSON only."
+    user_prompt = f"Generate a children's educational video script about: {topic}. Output JSON only, no extra text."
     
     script = call_openrouter_api(user_prompt)
     
-    # Validate
+    # Validate structure
     required = ["title", "scenes", "topic"]
-    if any(k not in script for k in required):
-        raise ValueError(f"Invalid script structure. Missing: {[k for k in required if k not in script]}")
+    missing = [k for k in required if k not in script]
+    if missing:
+        raise ValueError(f"Invalid script structure. Missing fields: {missing}")
         
     script["generated_at"] = __import__("datetime").datetime.now().isoformat()
     script["config"] = {"character": config.CHARACTER_NAME, "style": config.ART_STYLE}
