@@ -1,30 +1,19 @@
-# scripts/create_video.py - EN BAŞA EKLE
-# ====================
-# Pillow 10+ compatibility fix for ANTIALIAS → Resampling.LANCZOS
-# ====================
-from PIL import Image
-
-# Fix deprecated ANTIALIAS constant (Pillow 10+)
-if not hasattr(Image, 'ANTIALIAS'):
-    Image.ANTIALIAS = Image.Resampling.LANCZOS
-
-# Also fix other deprecated constants if needed
-if not hasattr(Image, 'ADAPTIVE'):
-    Image.ADAPTIVE = Image.Resampling.BICUBIC
-# ====================
-
-# scripts klasöründe yeni dosya: create_video.py
-# İçeriği yapıştır:
-
 # scripts/create_video.py
 # ====================
 """
-Assemble video from images, voice, and subtitles using MoviePy
-Optimized for GitHub Actions (CPU, memory, time constraints)
+Assemble video from images, voice, and subtitles using MoviePy.
+Fixed for Pillow 10+ compatibility and GitHub Actions environment.
 """
+# =====================================================================
+# IMPORTANT: Pillow 10+ compatibility fix must be at the very top!
+# =====================================================================
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+# =====================================================================
+
 from moviepy.editor import (
-    VideoFileClip, ImageClip, AudioFileClip, 
-    TextClip, CompositeVideoClip, concatenate_videoclips
+    ImageClip, AudioFileClip, TextClip, CompositeVideoClip, concatenate_videoclips
 )
 from moviepy.config import change_settings
 from pathlib import Path
@@ -40,13 +29,11 @@ def configure_imagemagick():
     if policy_path.exists():
         try:
             content = policy_path.read_text()
-            # Allow PNG read/write
             if 'pattern="PNG"' in content and 'rights="none"' in content:
                 updated = content.replace(
                     'pattern="PNG" rights="none"',
                     'pattern="PNG" rights="read|write"'
                 )
-                # Only write if we have permission (GitHub Actions has sudo)
                 try:
                     policy_path.write_text(updated)
                     logger.info("ImageMagick policy updated for PNG support")
@@ -57,13 +44,13 @@ def configure_imagemagick():
 
 # Apply config on module load
 configure_imagemagick()
-change_settings({"IMAGEMAGICK_BINARY": "magick"})  # Use 'magick' command
+change_settings({"IMAGEMAGICK_BINARY": "magick"})
 
 
 def create_subtitle_clip(
     text: str, 
     duration: float,
-    position: tuple = ("center", 0.85),  # Bottom center (relative)
+    position: tuple = ("center", 0.85),
     fontsize: int = 48,
     font: str = "Arial-Bold",
     color: str = "white",
@@ -71,20 +58,20 @@ def create_subtitle_clip(
     stroke_width: int = 2
 ) -> TextClip:
     """
-    Create a subtitle TextClip with consistent styling
+    Create a subtitle TextClip with consistent styling.
     """
+    # Use method="caption" for text wrapping
     return TextClip(
-    text,
-    fontsize=fontsize,
-    font=font,
-    color=color,
-    stroke_color=stroke_color,
-    stroke_width=stroke_width,
-    method="label",  # Changed from "caption" to "label"
-    size=(int(config.VIDEO_RESOLUTION[0] * 0.9), None),
-    align="center",
-    transparent=True  # Explicit transparency for Pillow
-).set_position(position).set_duration(duration)
+        text,
+        fontsize=fontsize,
+        font=font,
+        color=color,
+        stroke_color=stroke_color,
+        stroke_width=stroke_width,
+        method="caption",
+        size=(int(config.VIDEO_RESOLUTION[0] * 0.9), None),
+        align="center"
+    ).set_position(position).set_duration(duration)
 
 
 def create_scene_clip(
@@ -96,21 +83,16 @@ def create_scene_clip(
     """
     Create a single scene: image + optional audio + subtitle
     """
-    # Load image as clip, resize to target resolution
+    # Load image as clip
     img_clip = ImageClip(str(image_path)).set_duration(duration)
-    # Use explicit resampling filter for Pillow 10+
-    img_clip = img_clip.resize(
-        height=config.VIDEO_RESOLUTION[1],
-        resample_fn=lambda pil_img: pil_img.resize(
-            (int(config.VIDEO_RESOLUTION[0] * config.VIDEO_RESOLUTION[1] / pil_img.height), 
-             config.VIDEO_RESOLUTION[1]),
-            resample=Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
-        )
-    )
+    
+    # Simple resize to fit height (width will adjust automatically)
+    # Removed problematic resample_fn argument
+    img_clip = img_clip.resize(height=config.VIDEO_RESOLUTION[1])
     img_clip = img_clip.set_position("center")
     
     # Add audio if provided
-    if audio_path and audio_path.exists() and audio_path.suffix in ['.wav', '.mp3']:
+    if audio_path and audio_path.exists():
         audio_clip = AudioFileClip(str(audio_path))
         # Trim or loop audio to match duration
         if audio_clip.duration < duration:
@@ -136,11 +118,7 @@ def create_video(
 ) -> Path:
     """
     Assemble complete video from script, images, and audio
-    
-    Optimizations for GitHub Actions:
-    - threads=2: Match 2-core runner
-    - preset='ultrafast': Faster encoding, slightly larger file
-    - logger=None: Reduce output noise
+    Optimized for GitHub Actions
     """
     if output_path is None:
         import datetime
@@ -170,7 +148,6 @@ def create_video(
     
     # Add closing scene if requested
     if add_closing and script.get("closing_line"):
-        # Use last image or create simple closing card
         closing_img = image_paths[-1] if image_paths else None
         if closing_img:
             closing_clip = create_scene_clip(
@@ -220,7 +197,6 @@ def create_video(
 def compress_video_if_needed(input_path: Path, target_mb: int = None) -> Path:
     """
     Compress video with FFmpeg if it exceeds size limit
-    Returns path to (possibly new) video file
     """
     target_mb = target_mb or config.VIDEO_TARGET_SIZE_MB
     target_bytes = target_mb * 1024 * 1024
@@ -234,16 +210,15 @@ def compress_video_if_needed(input_path: Path, target_mb: int = None) -> Path:
     
     output_path = input_path.parent / f"{input_path.stem}_compressed{input_path.suffix}"
     
-    # FFmpeg compression command
     cmd = [
         "ffmpeg", "-i", str(input_path),
         "-c:v", "libx264",
         "-preset", "fast",
-        "-crf", "28",  # Higher = more compression (18-28 typical)
+        "-crf", "28",
         "-c:a", "aac",
         "-b:a", "128k",
         "-movflags", "+faststart",
-        "-y",  # Overwrite output
+        "-y",
         str(output_path)
     ]
     
@@ -251,7 +226,7 @@ def compress_video_if_needed(input_path: Path, target_mb: int = None) -> Path:
     
     if result.returncode != 0:
         logger.error(f"FFmpeg compression failed: {result.stderr[:200]}")
-        return input_path  # Return original if compression fails
+        return input_path
     
     new_size = output_path.stat().st_size
     logger.info(f"Compressed: {current_size / 1024 / 1024:.1f} MB → {new_size / 1024 / 1024:.1f} MB")
@@ -260,7 +235,5 @@ def compress_video_if_needed(input_path: Path, target_mb: int = None) -> Path:
 
 
 if __name__ == "__main__":
-    print("🎬 Video assembly module loaded")
-    print("💡 Run via main pipeline, not standalone")
+    print("🎬 Video assembly module loaded (Pillow 10+ Compatible)")
 # ====================
-# Dosyayı kaydet ✅
