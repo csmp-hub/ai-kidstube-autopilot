@@ -1,12 +1,10 @@
-# utils klasöründe yeni dosya: logger.py
-# İçeriği yapıştır:
-
 # utils/logger.py
 # ====================
 """
 Structured logging for AI-KidsTube Autopilot
 """
 import structlog
+import logging
 import sys
 from pathlib import Path
 
@@ -14,6 +12,9 @@ def setup_logger(log_level: str = "INFO", log_file: Path = None):
     """
     Configure structlog with console and optional file output
     """
+    # Use standard logging levels (NOT structlog.INFO)
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    
     processors = [
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -29,9 +30,7 @@ def setup_logger(log_level: str = "INFO", log_file: Path = None):
     
     structlog.configure(
         processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, log_level.upper(), structlog.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(
             file=sys.stdout if not log_file else open(log_file, "a", encoding="utf-8")
@@ -44,4 +43,3 @@ def setup_logger(log_level: str = "INFO", log_file: Path = None):
 # Create default logger instance
 logger = setup_logger()
 # ====================
-# Dosyayı kaydet ✅
