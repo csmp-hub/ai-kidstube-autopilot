@@ -52,7 +52,7 @@ def create_subtitle_clip(
     duration: float,
     position: tuple = ("center", 0.85),
     fontsize: int = 48,
-    font: str = "Arial-Bold",
+    font: str = "DejaVu-Sans-Bold",
     color: str = "white",
     stroke_color: str = "black",
     stroke_width: int = 2
