@@ -1,136 +1,91 @@
-# scripts klasöründe yeni dosya: generate_voice.py
-# İçeriği yapıştır:
-
 # scripts/generate_voice.py
 # ====================
 """
-Generate voiceover using Piper TTS (offline, Turkish support)
+Generate voiceover using Edge-TTS (free, no model download required)
 """
-import subprocess
-import tempfile
+import asyncio
+import edge_tts
 from pathlib import Path
 from typing import Optional
 from utils.config import config
 from utils.logger import logger
 
-# Piper model info for Turkish
-# English model for kids content (clear, friendly voice)
-PIPER_MODEL_NAME = "en_US-amy-medium"
-PIPER_MODEL_URL = f"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{PIPER_MODEL_NAME}/{PIPER_MODEL_NAME}.onnx"
-PIPER_CONFIG_URL = f"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{PIPER_MODEL_NAME}/{PIPER_MODEL_NAME}.onnx.json"
+# Edge-TTS voice for English kids content (clear, friendly)
+EDGE_TTS_VOICE = "en-US-EmmaNeural"  # Female, clear, child-friendly
+# Alternatives: "en-US-GuyNeural" (male), "en-US-AnaNeural" (female)
 
-def ensure_piper_model(model_dir: Path = None) -> Path:
+async def generate_voice_async(
+    text: str, 
+    output_path: Path,
+    voice: str = None,
+    rate: str = "+0%"  # Speed: "+10%" faster, "-10%" slower
+) -> Path:
     """
-    Download Piper Turkish model if not present
-    Returns path to model directory
+    Generate speech using Edge-TTS (async)
     """
-    if model_dir is None:
-        model_dir = config.BASE_DIR / "models" / "piper"
+    voice = voice or EDGE_TTS_VOICE
     
-    model_path = model_dir / f"{PIPER_MODEL_NAME}.onnx"
-    config_path = model_dir / f"{PIPER_MODEL_NAME}.onnx.json"
+    communicate = edge_tts.Communicate(
+        text=text,
+        voice=voice,
+        rate=rate,
+        volume="+0%",
+        pitch="+0Hz"
+    )
     
-    if model_path.exists() and config_path.exists():
-        logger.info(f"Piper model already present: {model_dir}")
-        return model_dir
-    
-    logger.info(f"Downloading Piper Turkish model to: {model_dir}")
-    model_dir.mkdir(parents=True, exist_ok=True)
-    
-    import requests
-    
-    # Download model
-    logger.info("Downloading model file...")
-    response = requests.get(PIPER_MODEL_URL, stream=True)
-    response.raise_for_status()
-    with open(model_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
-    
-    # Download config
-    logger.info("Downloading config file...")
-    response = requests.get(PIPER_CONFIG_URL)
-    response.raise_for_status()
-    with open(config_path, "w", encoding="utf-8") as f:
-        f.write(response.text)
-    
-    logger.info("Piper model download complete")
-    return model_dir
-
+    await communicate.save(str(output_path))
+    return output_path
 
 def generate_voice(
     text: str, 
     output_path: Path = None,
-    model_dir: Path = None,
+    voice: str = None,
     speed: float = 1.0
 ) -> Path:
     """
-    Generate speech from text using Piper TTS
+    Generate speech from text using Edge-TTS (sync wrapper)
     
     Args:
-        text: Turkish text to synthesize
-        output_path: Output WAV file path (auto-generated if None)
-        model_dir: Piper model directory
+        text: English text to synthesize
+        output_path: Output MP3 file path (auto-generated if None)
+        voice: Edge-TTS voice name (default: en-US-EmmaNeural)
         speed: Speech speed multiplier (1.0 = normal)
         
     Returns:
-        Path to generated audio file
+        Path to generated audio file (MP3)
     """
     if output_path is None:
         import hashlib
         import datetime
         hash_id = hashlib.md5(text.encode()).hexdigest()[:8]
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = config.OUTPUT_DIR / f"voice_{timestamp}_{hash_id}.wav"
+        output_path = config.OUTPUT_DIR / f"voice_{timestamp}_{hash_id}.mp3"
     
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Ensure model is available
-    model_dir = ensure_piper_model(model_dir)
-    model_path = model_dir / f"{PIPER_MODEL_NAME}.onnx"
+    # Convert speed to Edge-TTS rate format
+    if speed == 1.0:
+        rate = "+0%"
+    elif speed > 1.0:
+        rate = f"+{int((speed - 1.0) * 100)}%"
+    else:
+        rate = f"-{int((1.0 - speed) * 100)}%"
     
-    # Build Piper command
-    cmd = [
-        "piper",
-        "--model", str(model_path),
-        "--output_file", str(output_path),
-        "--text", text,
-    ]
-    
-    # Add speed if not default
-    if speed != 1.0:
-        cmd.extend(["--length_scale", str(1.0 / speed)])
-    
-    logger.info(f"Generating voice: '{text[:50]}...'")
-    logger.debug(f"Piper command: {' '.join(cmd)}")
+    logger.info(f"Generating voice with Edge-TTS: '{text[:50]}...'")
     
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30
-        )
+        # Run async function in sync context
+        asyncio.run(generate_voice_async(text, output_path, voice, rate))
         
         if not output_path.exists():
-            raise RuntimeError("Piper completed but output file not created")
+            raise RuntimeError("Edge-TTS completed but output file not created")
         
         logger.info(f"Voice generated: {output_path} ({output_path.stat().st_size / 1024:.1f} KB)")
         return output_path
         
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Piper failed: {e.stderr}")
-        raise RuntimeError(f"TTS generation failed: {e.stderr[:200]}")
-    except FileNotFoundError:
-        logger.error("Piper binary not found. Installing...")
-        # Fallback: try to install via pip
-        try:
-            subprocess.run(["pip", "install", "piper-tts"], check=True)
-            return generate_voice(text, output_path, model_dir, speed)  # Retry
-        except Exception as install_error:
-            logger.error(f"Failed to install piper-tts: {install_error}")
-            raise RuntimeError("Piper TTS not available. Please install: pip install piper-tts")
+    except Exception as e:
+        logger.error(f"Edge-TTS failed: {e}")
+        raise RuntimeError(f"TTS generation failed: {str(e)[:200]}")
 
 
 def generate_script_voices(script: dict, output_dir: Path = None) -> list[Path]:
@@ -149,14 +104,14 @@ def generate_script_voices(script: dict, output_dir: Path = None) -> list[Path]:
         if not narration:
             continue
             
-        # Generate filename with scene number
-        output_path = output_dir / f"voice_scene_{i:02d}.wav"
+        # Generate filename with scene number (.mp3 for Edge-TTS)
+        output_path = output_dir / f"voice_scene_{i:02d}.mp3"
         audio_path = generate_voice(narration, output_path)
         audio_paths.append(audio_path)
     
     # Generate closing line if present
     if script.get("closing_line"):
-        output_path = output_dir / "voice_closing.wav"
+        output_path = output_dir / "voice_closing.mp3"
         audio_path = generate_voice(script["closing_line"], output_path)
         audio_paths.append(audio_path)
     
@@ -165,21 +120,20 @@ def generate_script_voices(script: dict, output_dir: Path = None) -> list[Path]:
 
 
 if __name__ == "__main__":
-    # Test with sample text
+    # Test with sample English text
     test_texts = [
-        "Merhaba arkadaşlar! Bugün renkleri öğreneceğiz.",
-        "Bu mavi. Mavi gibi gökyüzü!",
-        "Harika iş çıkardın! Bir sonraki videoda görüşürüz!"
+        "Hello friends! Today we will learn colors.",
+        "This is blue. Blue like the sky!",
+        "Great job! See you in the next video!"
     ]
     
-    print("🎤 Testing Piper TTS with Turkish...")
+    print("🎤 Testing Edge-TTS with English...")
     for i, text in enumerate(test_texts, 1):
         try:
-            path = generate_voice(text, config.OUTPUT_DIR / f"test_voice_{i}.wav")
+            path = generate_voice(text, config.OUTPUT_DIR / f"test_voice_{i}.mp3")
             print(f"✅ Voice {i}: {path} ({path.stat().st_size / 1024:.1f} KB)")
         except Exception as e:
             print(f"❌ Voice {i} failed: {e}")
     
-    print("\n💡 Note: First run downloads ~50MB model file")
+    print("\n💡 Edge-TTS: No model download, just internet required")
 # ====================
-# Dosyayı kaydet ✅
