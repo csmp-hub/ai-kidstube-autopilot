@@ -94,11 +94,13 @@ def create_scene_clip(
     # Add audio if provided
     if audio_path and audio_path.exists():
         audio_clip = AudioFileClip(str(audio_path))
-        # Trim or loop audio to match duration
-        if audio_clip.duration < duration:
-            audio_clip = audio_clip.loop(duration)
-        else:
+        # MoviePy 1.0.3 uyumlu güvenli süre ayarı:
+        # Uzunsa kes, kısaysa olduğu gibi bırak (sessizlik eklenir)
+        if audio_clip.duration > duration:
             audio_clip = audio_clip.subclip(0, duration)
+        else:
+            audio_clip = audio_clip.set_duration(duration)
+            
         img_clip = img_clip.set_audio(audio_clip)
     
     # Add subtitle if text provided
