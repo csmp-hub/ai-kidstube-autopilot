@@ -1,3 +1,18 @@
+# scripts/create_video.py - EN BAŞA EKLE
+# ====================
+# Pillow 10+ compatibility fix for ANTIALIAS → Resampling.LANCZOS
+# ====================
+from PIL import Image
+
+# Fix deprecated ANTIALIAS constant (Pillow 10+)
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
+# Also fix other deprecated constants if needed
+if not hasattr(Image, 'ADAPTIVE'):
+    Image.ADAPTIVE = Image.Resampling.BICUBIC
+# ====================
+
 # scripts klasöründe yeni dosya: create_video.py
 # İçeriği yapıştır:
 
