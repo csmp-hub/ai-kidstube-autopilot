@@ -36,8 +36,8 @@ def retry_with_fallback(
             
             for attempt in range(1, max_retries + 1):
                 try:
-                    logger.info(f"API call attempt {attempt}/{max_retries}", 
-                               function=func.__name__)
+                    logger.info(f"API call attempt {attempt}/{max_retries} - function: {func.__name__}")
+
                     return func(*args, **kwargs)
                     
                 except retry_on_exceptions as e:
@@ -45,10 +45,8 @@ def retry_with_fallback(
                     wait_time = backoff_factor ** (attempt - 1)
                     
                     logger.warning(
-                        f"Attempt {attempt} failed: {type(e).__name__}: {str(e)[:100]}",
-                        function=func.__name__,
-                        retry_after=wait_time
-                    )
+    f"Attempt {attempt} failed: {type(e).__name__}: {str(e)[:100]} - function: {func.__name__} - retry_after: {wait_time}s"
+)
                     
                     if attempt < max_retries:
                         time.sleep(wait_time)
