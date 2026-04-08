@@ -53,15 +53,23 @@ def call_openrouter_api(user_prompt: str) -> dict:
     model_id = "meta-llama/llama-3-8b-instruct:free"
     
     payload = {
-        "model": model_id,
-        "messages": [
-            {"role": "system", "content": load_system_prompt()},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1000,
-        "max_price": 0  # Force free tier
+    "model": model_id,
+    "messages": [
+        {"role": "system", "content": load_system_prompt()},
+        {"role": "user", "content": user_prompt}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    # ✅ max_price must be an object with prompt/completion fields
+    "max_price": {
+        "prompt": 0,
+        "completion": 0
+    },
+    # ✅ Alternative: Force free tier via provider routing
+    "provider": {
+        "order": ["Free"]
     }
+}
     
     logger.info(f"🔍 Calling OpenRouter API with model: {model_id}")
     logger.debug(f"Request payload: {json.dumps(payload, indent=2)[:500]}...")
