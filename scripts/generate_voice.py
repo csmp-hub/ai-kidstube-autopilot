@@ -118,6 +118,19 @@ def generate_script_voices(script: dict, output_dir: Path = None) -> list[Path]:
     logger.info(f"Generated {len(audio_paths)} voice files")
     return audio_paths
 
+# ====================
+# COMPATIBILITY STUBS (for backward compatibility)
+# ====================
+def ensure_piper_model(model_dir: Path = None) -> Path:
+    """
+    Stub function: Edge-TTS doesn't need model downloads.
+    Returns a dummy path for compatibility.
+    """
+    logger.info("Edge-TTS: No model download required")
+    if model_dir is None:
+        model_dir = config.BASE_DIR / "models" / "piper"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    return model_dir
 
 if __name__ == "__main__":
     # Test with sample English text
@@ -136,4 +149,6 @@ if __name__ == "__main__":
             print(f"❌ Voice {i} failed: {e}")
     
     print("\n💡 Edge-TTS: No model download, just internet required")
+
+
 # ====================
