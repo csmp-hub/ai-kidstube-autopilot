@@ -100,13 +100,16 @@ def generate_daily_script(topic: str = None) -> dict:
     
     logger.info(f"Generating script for topic: {topic}")
     
-    user_prompt = f"""Bugün için video senaryosu oluştur.
-Konu: {topic}
-Hedef kitle: 2-6 yaş çocuklar
-Süre: 15-30 saniye
-Dil: Basit, ritmik Türkçe
 
-Lütfen JSON formatında çıktı ver."""
+    user_prompt = f"""Generate a video script in ENGLISH ONLY.
+Topic: {topic}
+Target audience: Children ages 2-6
+Duration: 15-30 seconds
+Language: Simple, rhythmic English
+
+Please output in JSON format."""
+
+
     
     script = call_openrouter_api(user_prompt)
     
