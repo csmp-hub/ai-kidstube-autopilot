@@ -1,6 +1,3 @@
-# utils klasöründe yeni dosya: api_wrapper.py
-# İçeriği yapıştır:
-
 # utils/api_wrapper.py
 # ====================
 """
@@ -21,13 +18,6 @@ def retry_with_fallback(
 ):
     """
     Decorator for retrying API calls with exponential backoff and fallback
-    
-    Args:
-        max_retries: Number of retry attempts before giving up
-        fallback_func: Function to call if all retries fail
-        backoff_factor: Multiplier for wait time between retries (2.0 = 2s, 4s, 8s)
-        timeout_seconds: Request timeout in seconds
-        retry_on_exceptions: Tuple of exception types that trigger retry
     """
     def decorator(func: Callable):
         @wraps(func)
@@ -36,17 +26,18 @@ def retry_with_fallback(
             
             for attempt in range(1, max_retries + 1):
                 try:
+                    # ✅ FIX: Use f-string instead of keyword arguments
                     logger.info(f"API call attempt {attempt}/{max_retries} - function: {func.__name__}")
-
                     return func(*args, **kwargs)
                     
                 except retry_on_exceptions as e:
                     last_error = e
                     wait_time = backoff_factor ** (attempt - 1)
                     
+                    # ✅ FIX: Use f-string instead of keyword arguments
                     logger.warning(
-    f"Attempt {attempt} failed: {type(e).__name__}: {str(e)[:100]} - function: {func.__name__} - retry_after: {wait_time}s"
-)
+                        f"Attempt {attempt} failed: {type(e).__name__}: {str(e)[:100]} - function: {func.__name__} - retry_after: {wait_time}s"
+                    )
                     
                     if attempt < max_retries:
                         time.sleep(wait_time)
@@ -54,25 +45,20 @@ def retry_with_fallback(
                     
                 except Exception as e:
                     # Non-retryable exception
-                    logger.error(f"Non-retryable error: {type(e).__name__}: {e}", 
-                                function=func.__name__)
+                    logger.error(f"Non-retryable error: {type(e).__name__}: {e} - function: {func.__name__}")
                     raise
             
             # All retries failed - try fallback
             if fallback_func and callable(fallback_func):
-                logger.info("Switching to fallback method", 
-                           primary=func.__name__,
-                           fallback=fallback_func.__name__)
+                logger.info(f"Switching to fallback method - primary: {func.__name__}, fallback: {fallback_func.__name__}")
                 try:
                     return fallback_func(*args, **kwargs)
                 except Exception as fallback_error:
-                    logger.error("Fallback also failed", 
-                                error=str(fallback_error)[:100])
+                    logger.error(f"Fallback also failed: {str(fallback_error)[:100]}")
             
             # Everything failed
-            logger.error("All attempts exhausted", 
-                        function=func.__name__,
-                        error=str(last_error)[:100] if last_error else "Unknown")
+            error_msg = str(last_error)[:100] if last_error else "Unknown error"
+            logger.error(f"All attempts exhausted - function: {func.__name__} - error: {error_msg}")
             raise last_error or RuntimeError("API call failed after all retries")
             
         return wrapper
@@ -89,7 +75,6 @@ def with_timeout(timeout_seconds: int = 30):
             def timeout_handler(signum, frame):
                 raise TimeoutError(f"Function {func.__name__} timed out after {timeout_seconds}s")
             
-            # Set timeout (Unix only - for Windows, use threading approach)
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout_seconds)
             
@@ -101,4 +86,3 @@ def with_timeout(timeout_seconds: int = 30):
         return wrapper
     return decorator
 # ====================
-# Dosyayı kaydet ✅
