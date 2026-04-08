@@ -53,23 +53,20 @@ def call_openrouter_api(user_prompt: str) -> dict:
     model_id = "meta-llama/llama-3-8b-instruct:free"
     
     payload = {
-    "model": model_id,
-    "messages": [
-        {"role": "system", "content": load_system_prompt()},
-        {"role": "user", "content": user_prompt}
-    ],
-    "temperature": 0.7,
-    "max_tokens": 1000,
-    # ✅ max_price must be an object with prompt/completion fields
-    "max_price": {
-        "prompt": 0,
-        "completion": 0
-    },
-    # ✅ Alternative: Force free tier via provider routing
-    "provider": {
-        "order": ["Free"]
+        "model": "openrouter/auto",  # ✅ OpenRouter'ın kendi yönlendiricisi
+        "messages": [
+            {"role": "system", "content": load_system_prompt()},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1000,
+        # ✅ max_price'i KALDIRDIK (format sorunu çıkarmaması için)
+        # ✅ Bunun yerine provider routing ile free tier'a zorla:
+        "provider": {
+            "order": ["Free"],  # Sadece ücretsiz modelleri dene
+            "allow_fallbacks": True
+        }
     }
-}
     
     logger.info(f"🔍 Calling OpenRouter API with model: {model_id}")
     logger.debug(f"Request payload: {json.dumps(payload, indent=2)[:500]}...")
