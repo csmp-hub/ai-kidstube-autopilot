@@ -56,15 +56,17 @@ jobs:
       - name: 🔧 Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            imagemagick \
-            ffmpeg \
-            fonts-liberation \
-            wget \
-            ca-certificates
+          sudo apt-get install -y imagemagick ffmpeg
+          # Fix ImageMagick policy for MoviePy (Ubuntu 24.04 uses ImageMagick 6)
+          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml || true
           
-          # Fix ImageMagick policy for PNG writing
-          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
+          # Create symlink for 'magick' command (use 'convert' from ImageMagick 6)
+          sudo ln -sf /usr/bin/convert /usr/bin/magick || true
+          
+          # Verify installations
+          convert -version
+          ffmpeg -version
+
           
           # Verify installations
           convert -version
