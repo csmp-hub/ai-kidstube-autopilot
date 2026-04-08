@@ -98,7 +98,15 @@ def create_scene_clip(
     """
     # Load image as clip, resize to target resolution
     img_clip = ImageClip(str(image_path)).set_duration(duration)
-    img_clip = img_clip.resize(height=config.VIDEO_RESOLUTION[1])
+    # Use explicit resampling filter for Pillow 10+
+    img_clip = img_clip.resize(
+        height=config.VIDEO_RESOLUTION[1],
+        resample_fn=lambda pil_img: pil_img.resize(
+            (int(config.VIDEO_RESOLUTION[0] * config.VIDEO_RESOLUTION[1] / pil_img.height), 
+             config.VIDEO_RESOLUTION[1]),
+            resample=Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
+        )
+    )
     img_clip = img_clip.set_position("center")
     
     # Add audio if provided
