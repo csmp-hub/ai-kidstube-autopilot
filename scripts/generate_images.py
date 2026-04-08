@@ -93,7 +93,7 @@ def call_hf_zerogpu(prompt: str, model_id: str = None) -> Optional[bytes]:
         }
     }
     
-    logger.info(f"Calling HF ZeroGPU: {model_id[:30]}...")
+    logger.info(f"Calling HF ZeroGPU: {model_id[:30]}... [function: call_hf_zerogpu]")
     
     response = requests.post(url, headers=headers, json=payload, timeout=config.IMAGE_GENERATION_TIMEOUT)
     
