@@ -1,23 +1,24 @@
-# .github/workflows klasöründe yeni dosya: daily_video.yml
-# İçeriği yapıştır:
-
 # .github/workflows/daily_video.yml
 # ====================
+# AI-KidsTube Autopilot - Daily Video Generation Pipeline
+# 100% Free Stack: GitHub Actions (public) + OpenRouter + Edge-TTS + HF ZeroGPU
+# ====================
+
 name: 🎬 Daily AI Video Generator
 
 on:
   # Run daily at 10:00 UTC
   schedule:
     - cron: '0 10 * * *'
-  # Allow manual trigger
+  # Allow manual trigger for testing
   workflow_dispatch:
     inputs:
       topic:
-        description: 'Optional: Specific topic for today'
+        description: 'Optional: Specific topic for today (e.g., "Colors", "Numbers 1-5")'
         required: false
         type: string
 
-# Prevent concurrent runs
+# Prevent concurrent runs (avoid race conditions)
 concurrency:
   group: daily-video
   cancel-in-progress: false
@@ -25,126 +26,185 @@ concurrency:
 jobs:
   generate-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Safety timeout
+    timeout-minutes: 45  # Safety timeout (should complete in ~15-20 min)
     
-    # Only run on public repos (for free minutes)
+    # Only run on public repos (required for free GitHub Actions minutes)
     if: github.repository_visibility == 'public'
     
+    # Environment variables (passed from GitHub Secrets)
     env:
-      # Pass secrets to environment
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       HF_ZERO_GPU_TOKEN: ${{ secrets.HF_ZERO_GPU_TOKEN }}
       LEONARDO_API_KEY: ${{ secrets.LEONARDO_API_KEY }}
+      # Optional: Override topic from workflow input
+      TOPIC_OVERRIDE: ${{ inputs.topic }}
     
     steps:
-      # 1. Checkout code
+      # =====================================================================
+      # STEP 1: Checkout repository code
+      # =====================================================================
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 1  # Faster: only latest commit
       
-      # 2. Setup Python
+      # =====================================================================
+      # STEP 2: Setup Python environment with pip caching
+      # =====================================================================
       - name: 🐍 Setup Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip'
+          cache: 'pip'  # ✅ Cache pip packages for faster installs
       
-      # 3. Install system dependencies (CRITICAL for MoviePy)
-      - name: 🔧 Install system dependencies
+      # =====================================================================
+      # STEP 3: Install system dependencies (optimized for speed & reliability)
+      # =====================================================================
+      - name: 🔧 Install system dependencies (optimized)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick ffmpeg
-          # Fix ImageMagick policy for MoviePy (Ubuntu 24.04 uses ImageMagick 6)
-          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml || true
+          # Faster apt update with minimal output
+          sudo apt-get update -qq
           
-          # Create symlink for 'magick' command (use 'convert' from ImageMagick 6)
-          sudo ln -sf /usr/bin/convert /usr/bin/magick || true
+          # Install only essential packages, skip recommended extras (~40% faster)
+          sudo apt-get install -y --no-install-recommends \
+            imagemagick \
+            ffmpeg \
+            fonts-liberation \
+            ca-certificates \
+            wget \
+            curl \
+            jq \
+            gh \
+          || {
+            # Fallback: if full install fails, try minimal set
+            echo "⚠️ Full install failed, trying minimal packages..."
+            sudo apt-get install -y imagemagick ffmpeg fonts-liberation
+          }
           
-          # Verify installations
-          convert -version
-          ffmpeg -version
-
+          # Fix ImageMagick policy for MoviePy text rendering (Ubuntu 24.04 uses IM6)
+          # This allows MoviePy to write PNG files for subtitles
+          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
           
-          # Verify installations
-          convert -version
-          ffmpeg -version
-          magick -version
+          # Create symlink: 'magick' → 'convert' (for MoviePy compatibility with IM6)
+          sudo ln -sf /usr/bin/convert /usr/bin/magick 2>/dev/null || true
+          
+          # Verify critical tools are installed
+          echo "🔍 Verifying installations..."
+          command -v ffmpeg >/dev/null 2>&1 || { echo "❌ ffmpeg not found"; exit 1; }
+          command -v convert >/dev/null 2>&1 || { echo "❌ ImageMagick not found"; exit 1; }
+          
+          # Show versions for debugging logs
+          ffmpeg -version | head -1
+          convert -version | head -1
+          echo "✅ System dependencies installed successfully"
       
-      # 4. Install Python dependencies
+      # =====================================================================
+      # STEP 4: Install Python dependencies (with cache)
+      # =====================================================================
       - name: 📦 Install Python packages
         run: |
           python -m pip install --upgrade pip
+          # Install from requirements.txt (cached if unchanged)
           pip install -r requirements.txt
-          
-          # Pre-download Piper model to save time
-          python -c "from scripts.generate_voice import ensure_piper_model; ensure_piper_model()"
+          echo "✅ Python dependencies installed"
       
-      # 5. Run main pipeline
+      # =====================================================================
+      # STEP 5: Run the main video generation pipeline
+      # =====================================================================
       - name: 🎬 Generate video
         run: python main.py
         env:
-          # Pass workflow input if provided
+          # Pass optional topic override from workflow input
           TOPIC_OVERRIDE: ${{ inputs.topic }}
       
-      # 6. Upload video as artifact (7-day retention)
+      # =====================================================================
+      # STEP 6: Upload generated video as artifact (7-day retention)
+      # =====================================================================
       - name: 💾 Save video artifact
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always()  # Upload even if job fails (for debugging)
         with:
           name: video-${{ github.run_number }}-${{ github.run_attempt }}
           path: output/*.mp4
-          retention-days: 7
-          if-no-files-found: warn
+          retention-days: 7  # Auto-delete after 7 days (save storage)
+          if-no-files-found: warn  # Warn but don't fail if no video
       
-      # 7. Upload logs for debugging
-      - name: 📋 Save logs
+      # =====================================================================
+      # STEP 7: Upload logs for debugging (only on failure)
+      # =====================================================================
+      - name: 📋 Save logs for debugging
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure()  # Only upload if job failed
         with:
-          name: logs-${{ github.run_number }}
+          name: logs-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             output/*.json
             output/*.txt
+            output/*.log
           retention-days: 3
       
-      # 8. Cleanup old artifacts (prevent 5GB limit)
+      # =====================================================================
+      # STEP 8: Cleanup old artifacts (prevent 5GB repo limit)
+      # =====================================================================
       - name: 🧹 Cleanup old artifacts
         if: always()
+        continue-on-error: true  # Don't fail workflow if cleanup fails
         run: |
-          # Install GitHub CLI if not present
+          echo "🧹 Cleaning up artifacts older than 7 days..."
+          
+          # Install GitHub CLI if not present (should be pre-installed)
           if ! command -v gh &> /dev/null; then
-            sudo apt-get install -y gh
+            echo "⚠️ Installing GitHub CLI..."
+            sudo apt-get install -y -qq gh
           fi
           
-          # Delete artifacts older than 7 days
-          gh api repos/${{ github.repository }}/actions/artifacts \
-            | jq -r '.artifacts[] | select(.created_at < "'$(date -d '7 days ago' -Iseconds)'") | .id' \
-            | while read id; do
-                echo "🗑️  Deleting artifact $id"
-                gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$id || true
-              done
+          # Calculate cutoff date (7 days ago in ISO format)
+          CUTOFF=$(date -d '7 days ago' -Iseconds 2>/dev/null || date -v-7d -Iseconds 2>/dev/null || echo "")
+          
+          if [ -n "$CUTOFF" ]; then
+            # List and delete old artifacts
+            gh api repos/${{ github.repository }}/actions/artifacts \
+              | jq -r ".artifacts[] | select(.created_at < \"$CUTOFF\") | .id" \
+              | while read -r id; do
+                  [ -n "$id" ] && echo "🗑️  Deleting artifact $id" && \
+                  gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$id || true
+                done
+          else
+            echo "⚠️ Could not calculate cutoff date, skipping cleanup"
+          fi
+          
+          echo "✅ Cleanup complete"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      # 9. Post-completion summary
+      # =====================================================================
+      # STEP 9: Post-completion summary (shown in Actions UI)
+      # =====================================================================
       - name: 📊 Job summary
         if: always()
         run: |
-          echo "## 🎬 AI-KidsTube Autopilot - Run Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run ID**: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Triggered**: ${{ github.event_name }} by ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -f output/*.mp4 ]; then
-            echo "- **Video**: Generated ✅" >> $GITHUB_STEP_SUMMARY
-            echo "- **Next**: Check Telegram for download link 📱" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- **Video**: Not generated ❌" >> $GITHUB_STEP_SUMMARY
-            echo "- **Debug**: Check logs artifact 📋" >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## 🎬 AI-KidsTube Autopilot - Run Summary"
+            echo "- **Status**: ${{ job.status }}"
+            echo "- **Run ID**: #${{ github.run_number }}"
+            echo "- **Triggered**: ${{ github.event_name }} by @${{ github.actor }}"
+            echo "- **Time**: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            
+            if [ -f output/*.mp4 ] 2>/dev/null; then
+              VIDEO=$(ls output/*.mp4 2>/dev/null | head -1)
+              SIZE=$(stat -f%z "$VIDEO" 2>/dev/null || stat -c%s "$VIDEO" 2>/dev/null || echo "?")
+              echo "- **Video**: Generated ✅"
+              echo "- **File**: \`${VIDEO#\*/}\`"
+              echo "- **Size**: ~$((SIZE / 1024 / 1024)) MB"
+              echo "- **Next**: Check Telegram for download link 📱"
+            else
+              echo "- **Video**: Not generated ❌"
+              echo "- **Debug**: Check logs artifact 📋 or job output above"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
 # ====================
-# Dosyayı kaydet ✅
+# END OF WORKFLOW
+# ====================
