@@ -92,16 +92,25 @@ def create_scene_clip(
     img_clip = img_clip.set_position("center")
     
     # Add audio if provided
+    # Ses dosyası varsa işle
     if audio_path and audio_path.exists():
         audio_clip = AudioFileClip(str(audio_path))
-        # MoviePy 1.0.3 uyumlu güvenli süre ayarı:
-        # Uzunsa kes, kısaysa olduğu gibi bırak (sessizlik eklenir)
-        if audio_clip.duration > duration:
-            audio_clip = audio_clip.subclip(0, duration)
+        
+        # --- KRİTİK DÜZELTME ---
+        # Eğer ses dosyası, sahne süresinden KISAYSA:
+        # Sahne süresini sesin süresine indir. (Videoyu kısaltır, hatayı önler)
+        if audio_clip.duration < duration:
+            duration = audio_clip.duration
+        # Eğer ses dosyası SAHNE süresinden UZUNSA:
+        # Sesi keserek sahneye sığdır.
         else:
-            audio_clip = audio_clip.set_duration(duration)
-            
+            audio_clip = audio_clip.subclip(0, duration)
+        # -----------------------
+        
         img_clip = img_clip.set_audio(audio_clip)
+    
+    # Süreyi ayarla (Artık sesle senkronize olan duration değişkeni kullanılır)
+    img_clip = img_clip.set_duration(duration)
     
     # Add subtitle if text provided
     if subtitle_text and subtitle_text.strip():
